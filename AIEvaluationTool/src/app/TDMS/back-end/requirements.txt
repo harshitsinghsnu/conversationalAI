@@ -1,0 +1,26 @@
+# fastapi uvicorn sqlalchemy psycopg2-binary python-jose[cryptography] passlib[bcrypt] python-multipart
+
+fastapi
+uvicorn
+sqlalchemy
+sqlalchemy-utils
+psycopg2-binary
+mariadb
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+pydantic_settings
+passlib>=1.7.4
+bcrypt>=4.0.1
+
+psycopg2-binary
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+bcrypt>=4.0.1
+pydantic[email]
+googletrans
+python-iso639
+requests>=2.32.4
+openai
+google-genai

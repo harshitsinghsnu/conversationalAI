@@ -1,0 +1,25 @@
+# Environment and secrets
+AIEvaluationTool/.env
+*.env
+.streamlit/secrets.toml
+
+# Database (generated on setup)
+AIEvaluationTool/data/AIEvaluationData.db
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+
+# Logs
+AIEvaluationTool/src/app/interface_manager/logs/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,234 @@
+# Setup And Configuration
+
+This page explains how to run the AI Evaluation Tool from scratch using Docker, with separate flows for:
+
+- UI-based usage
+- CLI-based usage
+
+It is aligned with the current Compose stack (`app-backend`, `app-front-end`, `auth-service`, `tdms-backend`, `tdms-frontend`, `nginx`).
+
+## Prerequisites
+
+- Docker Engine `24+`
+- Docker Compose `v2+`
+- Repository cloned locally
+
+## Current Docker Stack
+
+Primary services in [docker-compose.yml][docker-compose]:
+
+- `db` (MariaDB)
+- `selenium-browser` (Chrome + WebDriver + noVNC)
+- `interface-manager` (target interaction service)
+- `auth-service` (authentication and route redirects)
+- `app-backend` (TCE backend + CLI runtime environment)
+- `tdms-backend` (TDMS API)
+- `app-front-end` (TCE UI build)
+- `tdms-frontend` (TDMS UI build)
+- `nginx` (single public entrypoint and reverse proxy)
+
+Public access is through `nginx` on `http://localhost:${NGINX_PORT:-80}`.
+
+## Configuration Files To Prepare
+
+### 1. Root `.env`
+
+Create `.env` if not present:
+
+```bash
+cp .env.example .env
+```
+
+Minimal runtime values:
+
+```env
+OLLAMA_URL="http://host.docker.internal:11434/"
+GPU_URL="http://host.docker.internal:16000/"
+LLM_AS_JUDGE_MODEL="qwen3:32b"
+HF_TOKEN=""
+PERSPECTIVE_API_KEY=""
+SARVAM_API_KEY=""
+GEMINI_API_KEY=""
+OPENAI_API_KEY=""
+```
+
+### 2. Optional `.env` Overrides (All Compose-Tunable Variables)
+
+Use these only when you need custom ports, DB credentials, or custom frontend/backend routes:
+
+```env
+# Public port for nginx
+NGINX_PORT=80
+
+# MariaDB
+MARIADB_ROOT_PASSWORD=root_password
+MARIADB_DATABASE=aievaluationtool
+MARIADB_USER=aiet_user
+MARIADB_PASSWORD=aiet_password
+
+# Service-level DB fallback values
+DB_HOST=db
+DB_PORT=3306
+
+# Auth redirects / route integration
+TCE_APP_URL=/
+TDMS_APP_URL=/tdms/dashboard
+AUTH_SERVICE_URL=http://auth-service:7500
+
+# TCE frontend build args
+REACT_APP_API_BASE_URL=/api
+REACT_APP_AUTH_SERVICE_URL=/auth
+REACT_APP_TDMS_API_BASE_URL=/tdms-api
+REACT_APP_TEST_DATA_URL=/tdms/dashboard
+REACT_APP_USER_LIST_URL=/tdms/users
+
+# TDMS frontend build args
+VITE_API_BASE_URL=/tdms-api
+VITE_AUTH_SERVICE_URL=/auth
+VITE_TEST_RUNS_HOME_URL=/
+```
+
+### 3. Root `config.json` (Required For CLI Flow)
+
+Keep Docker-aware values:
+
+- `db.host` should be `db`
+- `interface_manager.docker` should be `true`
+- `interface_manager.base_url` should be `http://interface-manager:8000`
+
+### 4. `src/app/interface_manager/config.json` (Required For Browser Targets)
+
+Use remote Selenium mode:
+
+```json
+{
+  "selenium_mode": "remote",
+  "selenium_remote_url": "http://selenium-browser:4444/wd/hub"
+}
+```
+
+## Section 1: Run Through UI (Recommended For Most Users)
+
+### Step 1: Build Images
+
+```bash
+docker compose build
+```
+
+### Step 2: Start Full UI Stack
+
+```bash
+docker compose up -d nginx
+```
+
+Bringing up `nginx` starts required dependencies (`app-front-end`, `tdms-frontend`, `app-backend`, `tdms-backend`, `auth-service`, `interface-manager`, `db`, `selenium-browser`).
+
+### Step 3: Verify Containers
+
+```bash
+docker compose ps
+```
+
+### Step 4: Open The Application
+
+- Main UI (TCE): `http://localhost:${NGINX_PORT:-80}/`
+- TDMS UI: `http://localhost:${NGINX_PORT:-80}/tdms/`
+- Selenium live view (via nginx): `http://localhost:${NGINX_PORT:-80}/selenium/`
+- Stack health check: `http://localhost:${NGINX_PORT:-80}/healthz`
+
+For detailed UI workflows after startup, refer to:
+
+- [TDMS + Dashboard UI Overview](../TDMS_and_Dashboard_ui/index.md)
+- [Authentication And Roles](../TDMS_and_Dashboard_ui/authentication_and_roles.md)
+- [TDMS Dashboard Manual](../TDMS_and_Dashboard_ui/tdms_dashboard_manual.md)
+- [Test Runs Manual](../TDMS_and_Dashboard_ui/test_runs_manual.md)
+- [Run Configuration Manual](../TDMS_and_Dashboard_ui/run_configuration_manual.md)
+- [Analysis And Run Details Manual](../TDMS_and_Dashboard_ui/analysis_and_run_details_manual.md)
+
+## Section 2: Run Through CLI (Importer, Execution, Analysis, Report)
+
+Use `app-backend` as the CLI runtime container.
+
+### Step 1: Ensure Core Services Are Running
+
+```bash
+docker compose up -d db selenium-browser interface-manager auth-service tdms-backend app-backend
+```
+
+### Step 2: Import Test Data
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/importer/main.py --config config.json
+```
+
+### Step 3: Inspect Plans/Metrics (Optional but Recommended)
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/testcase_executor/main.py --config config.json --get-plans
+```
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/testcase_executor/main.py --config config.json --get-metrics
+```
+
+### Step 4: Execute Testcases
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/testcase_executor/main.py --config config.json --testplan-id <id> --execute
+```
+
+### Step 5: Analyze Responses
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/response_analyzer/analyze.py --config config.json --run-name <run_name>
+```
+
+### Step 6: Generate Report
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/response_analyzer/report.py --config config.json --run-name <run_name> --get-report
+```
+
+## Optional: Use Built-In Sarvam AI Service
+
+If you want Compose-managed Sarvam instead of an external `GPU_URL` endpoint:
+
+```bash
+docker compose --profile sarvam up -d sarvam-ai
+```
+
+Then set:
+
+```env
+GPU_URL="http://sarvam-ai:16000/"
+```
+
+## Shutdown And Reset
+
+Stop all containers:
+
+```bash
+docker compose down
+```
+
+Stop and remove volumes (full reset):
+
+```bash
+docker compose down -v
+```
+
+## Final Pre-Run Checklist
+
+- `.env` created and validated
+- Docker service names used in `config.json`
+- remote Selenium enabled in `src/app/interface_manager/config.json`
+- test data files present under `data/`
+- target application details configured correctly
+
+[docker-compose]: ../../docker-compose.yml

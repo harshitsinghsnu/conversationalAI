@@ -1,0 +1,22 @@
+{
+    "db": {
+        "engine": "sqlite",
+        "file": "AIEvaluationData.db"
+    },
+    "files": {
+        "plans": "data/plans.json",
+        "testcases": "data/drug_discovery_datapoints.json",
+        "strategies": "data/strategy_id.json"
+    },
+    "target": {
+        "application_type": "API",
+        "application_name": "Drug-Discovery-Assistant",
+        "application_url": "https://api.groq.com/openai/v1",
+        "agent_name": "llama-3.1-8b-instant"
+    },
+    "interface_manager": {
+        "docker": false,
+        "base_url": "http://localhost:8001",
+        "base_url_local": "http://localhost:8001"
+    }
+}
